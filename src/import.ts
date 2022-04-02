@@ -349,53 +349,86 @@ function writeLedgerLogToSheet(logSheetInfo: ILogSheetInfo) {
   }
 }
 
-function mapArtifacts(onlyNewEntries = true) {
-  const ARTIFACT_ENTRY_NAME: keyof ArtifactSheetEntry = "name";
-  const ARTIFACT_ENTRY_SET_NAME: keyof ArtifactSheetEntry = "setName";
-  const ARTIFACT_ENTRY_DOMAIN_NAME: keyof ArtifactSheetEntry = "domainName";
+function propToIdx<EntryType>(headerRow: string[], props: (keyof EntryType)[]): number[] {
+  const idxMap = Object.fromEntries(headerRow.map((header, idx) => [header, idx]));
+  return props.map(prop => idxMap[prop as string]);
+}
 
+function mapArtifacts(onlyNewEntries = true) {
   const mappingSheet = SpreadsheetApp.getActive().getSheetByName(SHEET_NAME_ARTIFACT_ITEMS);
   const mappingValues = mappingSheet.getDataRange().getValues();
   mappingValues.shift();  // remove header
-  const artifactMapping = Object.fromEntries(mappingValues.map(row =>
-    ARTIFACT_ITEMS_INFO.setItemsHeaderIdxs.map(itemIdx =>
-      [
-        row[itemIdx],
-        {
-          [ARTIFACT_ENTRY_SET_NAME]: row[ARTIFACT_ITEMS_INFO.setNameIdx],
-          [ARTIFACT_ENTRY_DOMAIN_NAME]: row[ARTIFACT_ITEMS_INFO.domainNameIdx]
-        }
-      ]
-    )
+
+  type MappingEntry = { [key in keyof ArtifactSheetEntry]?: string };
+  const artifactMapping: { [name: string]: MappingEntry } = Object.fromEntries(mappingValues.map(row =>
+    ARTIFACT_ITEMS_INFO.setItemsHeaderIdxs.map(itemIdx => {
+      const info: MappingEntry = {
+        setName: row[ARTIFACT_ITEMS_INFO.setNameIdx],
+        domainName: row[ARTIFACT_ITEMS_INFO.domainNameIdx]
+      };
+      return [row[itemIdx], info];
+    })
   ).flat());
 
   const logSheet = SpreadsheetApp.getActive().getSheetByName(ARTIFACT_SHEET_INFO.sheetName);
   const sheetValues = logSheet.getDataRange().getValues();
-  const logHeaderIdxMap = Object.fromEntries(sheetValues[0].map((header, idx) => [header, idx]));
 
-  const ARTIFACT_ENTRY_NAME_IDX = logHeaderIdxMap[ARTIFACT_ENTRY_NAME];
-  const SET_NAME_IDX = logHeaderIdxMap[ARTIFACT_ENTRY_SET_NAME];
-  const ARTIFACT_ENTRY_DOMAIN_NAME_IDX = logHeaderIdxMap[ARTIFACT_ENTRY_DOMAIN_NAME];
+  const [NAME_IDX, SET_NAME_IDX, DOMAIN_NAME_IDX, TIME_IDX, REASON_IDX, RANK_IDX]
+    = propToIdx<ArtifactSheetEntry>(sheetValues[0], ["name", "setName", "domainName", "time", "reason", "rank"]);
 
-  for (let rowIdx = 1; rowIdx < sheetValues.length; rowIdx++) {
+  let prevArtifactTime: string;
+  let prevArtifactTimeIdx = 0;
+  let foundDomainName: string;
+  const fillDomainName = () => {
+    let setDomainNameIdx = prevArtifactTimeIdx;
+    while (true) {
+      let setDomainNameRow = sheetValues[setDomainNameIdx];
+      if (!setDomainNameRow || setDomainNameRow[TIME_IDX] !== prevArtifactTime) {
+        break;
+      }
+      setDomainNameRow[DOMAIN_NAME_IDX] = foundDomainName;
+      setDomainNameIdx++;
+    }
+  }
+
+  let rowIdx = 1;
+  for (; rowIdx < sheetValues.length; rowIdx++) {
     const row = sheetValues[rowIdx];
 
-    if (onlyNewEntries && (row[SET_NAME_IDX] !== "" || row[ARTIFACT_ENTRY_DOMAIN_NAME_IDX] !== "")) {
+    if (onlyNewEntries && (row[SET_NAME_IDX] !== "" || row[DOMAIN_NAME_IDX] !== "")) {
       break;
     }
 
-    const artifactName = row[ARTIFACT_ENTRY_NAME_IDX];
+    const artifactName = row[NAME_IDX];
     const artifactInfo = artifactMapping[artifactName];
 
     if (!artifactInfo) {
       continue;
     }
 
-    row[SET_NAME_IDX] = artifactInfo[ARTIFACT_ENTRY_SET_NAME];
-    row[ARTIFACT_ENTRY_DOMAIN_NAME_IDX] = artifactInfo[ARTIFACT_ENTRY_DOMAIN_NAME];
-  }
+    row[SET_NAME_IDX] = artifactInfo.setName;
 
-  logSheet.getRange(1, 1, sheetValues.length, sheetValues[0].length).setValues(sheetValues);
+    const artifactTime = row[TIME_IDX];
+
+    if (parseInt(row[REASON_IDX]) !== ARTIFACT_ITEMS_INFO.domainReason) {
+      continue;
+    }
+
+    if (artifactTime !== prevArtifactTime) {
+      fillDomainName();
+
+      foundDomainName = "";
+      prevArtifactTime = artifactTime;
+      prevArtifactTimeIdx = rowIdx;
+    }
+
+    if (artifactInfo.domainName && parseInt(row[RANK_IDX]) === ARTIFACT_ITEMS_INFO.domainInfereneceRank) {
+      foundDomainName = artifactInfo.domainName;
+    }
+  }
+  fillDomainName();
+
+  logSheet.getRange(1, 1, rowIdx, sheetValues[0].length).setValues(sheetValues.slice(0, rowIdx));
 }
 
 const getPrimogemLog = () => writeImServiceLogToSheet(PRIMOGEM_SHEET_INFO);

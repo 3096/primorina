@@ -104,6 +104,7 @@ const ARTIFACT_ITEMS_INFO = {
     10, // Circlet of Logos
   ],
   domainReason: 1016,
+  domainInfereneceRank: 5,
 }
 
 const MORA_SHEET_INFO: ILogSheetInfo = {
