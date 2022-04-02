@@ -95,6 +95,18 @@ interface ImServiceApiResponse {
   data: ImServiceLogData,
 }
 
+interface ImServiceArtifactLogEntry extends ImServiceLogEntry {
+  detail: string,
+  name: string,
+  level: string,
+  rank: string,
+}
+
+interface ArtifactSheetEntry extends ImServiceArtifactLogEntry {
+  setName: string,
+  domainName: string,
+}
+
 
 // ledger
 

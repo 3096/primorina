@@ -92,6 +92,20 @@ const ARTIFACT_SHEET_INFO: ILogSheetInfo = {
   }
 }
 
+const ARTIFACT_ITEMS_INFO = {
+  sheetName: SHEET_NAME_ARTIFACT_ITEMS,
+  setNameIdx: 0,
+  domainNameIdx: 1,
+  setItemsHeaderIdxs: [
+    2, // Flower of Life
+    4, // Plume of Death
+    6, // Sands of Eon
+    8, // Goblet of Eonothem
+    10, // Circlet of Logos
+  ],
+  domainReason: 1016,
+}
+
 const MORA_SHEET_INFO: ILogSheetInfo = {
   sheetName: SHEET_NAME_MORA_LOG,
   apiPaths: {
@@ -115,12 +129,12 @@ const USER_PREFERENCE_MONTHLY_REPORT = "Monthly Report";
 const USER_PREFERENCE_YEARLY_REPORT = "Yearly Report";
 // User Preferences
 const userPreferences = {
-  "Primogem Log": { "Monthly Report": "B35", "Yearly Report": "B36"},
-  "Crystal Log": { "Monthly Report": "B38", "Yearly Report": "B39"},
-  "Resin Log": { "Monthly Report": "B41", "Yearly Report": "B42"},
-  "Mora Log": { "Monthly Report": "B44", "Yearly Report": "B45"},
-  "Artifact Log": { "Monthly Report": "B47", "Yearly Report": "B48"},
-  "Weapon Log": { "Monthly Report": "B50", "Yearly Report": "B51"}
+  "Primogem Log": { "Monthly Report": "B35", "Yearly Report": "B36" },
+  "Crystal Log": { "Monthly Report": "B38", "Yearly Report": "B39" },
+  "Resin Log": { "Monthly Report": "B41", "Yearly Report": "B42" },
+  "Mora Log": { "Monthly Report": "B44", "Yearly Report": "B45" },
+  "Artifact Log": { "Monthly Report": "B47", "Yearly Report": "B48" },
+  "Weapon Log": { "Monthly Report": "B50", "Yearly Report": "B51" }
 }
 // Remove when using the 'Available' sheet from source, this is for backwards compatibility for v1.0 less. Artifact is done via 'Available' sheet from source
 const userPreferencesForReport = {

@@ -349,6 +349,55 @@ function writeLedgerLogToSheet(logSheetInfo: ILogSheetInfo) {
   }
 }
 
+function mapArtifacts(onlyNewEntries = true) {
+  const ARTIFACT_ENTRY_NAME: keyof ArtifactSheetEntry = "name";
+  const ARTIFACT_ENTRY_SET_NAME: keyof ArtifactSheetEntry = "setName";
+  const ARTIFACT_ENTRY_DOMAIN_NAME: keyof ArtifactSheetEntry = "domainName";
+
+  const mappingSheet = SpreadsheetApp.getActive().getSheetByName(SHEET_NAME_ARTIFACT_ITEMS);
+  const mappingValues = mappingSheet.getDataRange().getValues();
+  mappingValues.shift();  // remove header
+  const artifactMapping = Object.fromEntries(mappingValues.map(row =>
+    ARTIFACT_ITEMS_INFO.setItemsHeaderIdxs.map(itemIdx =>
+      [
+        row[itemIdx],
+        {
+          [ARTIFACT_ENTRY_SET_NAME]: row[ARTIFACT_ITEMS_INFO.setNameIdx],
+          [ARTIFACT_ENTRY_DOMAIN_NAME]: row[ARTIFACT_ITEMS_INFO.domainNameIdx]
+        }
+      ]
+    )
+  ).flat());
+
+  const logSheet = SpreadsheetApp.getActive().getSheetByName(ARTIFACT_SHEET_INFO.sheetName);
+  const sheetValues = logSheet.getDataRange().getValues();
+  const logHeaderIdxMap = Object.fromEntries(sheetValues[0].map((header, idx) => [header, idx]));
+
+  const ARTIFACT_ENTRY_NAME_IDX = logHeaderIdxMap[ARTIFACT_ENTRY_NAME];
+  const SET_NAME_IDX = logHeaderIdxMap[ARTIFACT_ENTRY_SET_NAME];
+  const ARTIFACT_ENTRY_DOMAIN_NAME_IDX = logHeaderIdxMap[ARTIFACT_ENTRY_DOMAIN_NAME];
+
+  for (let rowIdx = 1; rowIdx < sheetValues.length; rowIdx++) {
+    const row = sheetValues[rowIdx];
+
+    if (onlyNewEntries && (row[SET_NAME_IDX] !== "" || row[ARTIFACT_ENTRY_DOMAIN_NAME_IDX] !== "")) {
+      break;
+    }
+
+    const artifactName = row[ARTIFACT_ENTRY_NAME_IDX];
+    const artifactInfo = artifactMapping[artifactName];
+
+    if (!artifactInfo) {
+      continue;
+    }
+
+    row[SET_NAME_IDX] = artifactInfo[ARTIFACT_ENTRY_SET_NAME];
+    row[ARTIFACT_ENTRY_DOMAIN_NAME_IDX] = artifactInfo[ARTIFACT_ENTRY_DOMAIN_NAME];
+  }
+
+  logSheet.getRange(1, 1, sheetValues.length, sheetValues[0].length).setValues(sheetValues);
+}
+
 const getPrimogemLog = () => writeImServiceLogToSheet(PRIMOGEM_SHEET_INFO);
 const getCrystalLog = () => writeImServiceLogToSheet(CRYSTAL_SHEET_INFO);
 const getResinLog = () => writeImServiceLogToSheet(RESIN_SHEET_INFO);
