@@ -187,13 +187,14 @@ function importDataManagement() {
 
           if (bannerImportSheet) {
             var numberOfRows = bannerImportSheet.getMaxRows() - 1;
-            var range = bannerImportSheet.getRange(2, 1, numberOfRows, 5);
+            var numberOfColumns = userPreferences[availableSheets[i]]["Log Max Columns"];
+            var range = bannerImportSheet.getRange(2, 1, numberOfRows, numberOfColumns);
 
             if (numberOfRows > 0) {
               var bannerSheet = SpreadsheetApp.getActive().getSheetByName(availableSheets[i]);
 
               if (bannerSheet) {
-                bannerSheet.getRange(2, 1, numberOfRows, 5).setValues(range.getValues());
+                bannerSheet.getRange(2, 1, numberOfRows, numberOfColumns).setValues(range.getValues());
 
                 dashboardSheet.getRange(LOG_RANGES[availableSheets[i]]['range_dashboard_length']).setValue(numberOfRows);
                 settingsSheet.getRange(rowOfStatusWishHistory + i, 5).setValue(wishHistoryDoneStatus);
@@ -322,7 +323,7 @@ function updateItemsList() {
         }
       }
       // Remove sheets
-      var listOfSheetsToRemove = [SHEET_NAME_ARTIFACT_ITEMS];
+      var listOfSheetsToRemove = [SHEET_NAME_ARTIFACT_ITEMS, SHEET_NAME_REASON_MAP];
       var availableRangesValues = sheetAvailableSource.getRange(2, 1, sheetAvailableSource.getMaxRows() - 1, 1).getValues();
       var availableRanges = String(availableRangesValues).split(",");
 
@@ -437,6 +438,11 @@ function updateItemsList() {
           }
         }
       }
+      // Reload header
+      for (var i = 0; i < listOfSheetsLength; i++) {
+        addFormulaByLogName(listOfSheets[i], sheetSource);
+      }
+      loadReasonMapSheet(sheetSource);
 
       // Remove placeholder if available
       if (placeHolderSheet) {

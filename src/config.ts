@@ -1,6 +1,6 @@
 // for license and source, visit https://github.com/3096/primorina
 
-const SCRIPT_VERSION = "1.21";
+const SCRIPT_VERSION = "1.30";
 
 const SHEET_SOURCE_ID = '1p-SkTsyzoxuKHqqvCJSUCaFBUmxd5uEEvCtb7bAqfDk';
 const SHEET_SOURCE_SUPPORTED_LOCALE = "en_GB";
@@ -32,6 +32,7 @@ const SHEET_NAME_WEAPON_LOG = "Weapon Log";
 const SHEET_NAME_WEAPON_YEARLY_REPORT = "Weapon Yearly Report";
 const SHEET_NAME_WEAPON_MONTHLY_REPORT = "Weapon Monthly Report";
 const SHEET_NAME_KEY_ITEMS = "Key Items";
+const SHEET_NAME_REASON_MAP = "Reason Map";
 
 const MONTHLY_SHEET_NAME = [
   SHEET_NAME_PRIMOGEM_MONTHLY_REPORT,
@@ -59,38 +60,70 @@ const LOG_CACHE_PREFIX = "CACHED";
 // sheet info
 interface ILogSheetInfo {
   sheetName: string,
-  apiPaths: { [serverDivide in ServerDivide]: string }
+  apiPaths: { [serverDivide in ServerDivide]: string },
+  header: { [headerName in HeaderName]: string }
 }
 
 const PRIMOGEM_SHEET_INFO: ILogSheetInfo = {
   sheetName: SHEET_NAME_PRIMOGEM_LOG,
   apiPaths: {
-    cn: "/ysulog/api/getPrimogemLog",
-    os: "/ysulog/api/getPrimogemLog",
+    cn: "/common/hk4e_self_help_query/User/GetPrimogemLog",
+    os: "/common/hk4e_self_help_query/User/GetPrimogemLog",
+  },
+  header: {
+    id: "id",
+    datetime: "datetime",
+    total: "add_num",
+    reasonId: "reason_id",
+    reasonDetail: "reason"
   }
 }
 
 const CRYSTAL_SHEET_INFO: ILogSheetInfo = {
   sheetName: SHEET_NAME_CRYSTAL_LOG,
   apiPaths: {
-    cn: "/ysulog/api/getCrystalLog",
-    os: "/ysulog/api/getCrystalLog",
+    cn: "/common/hk4e_self_help_query/User/GetCrystalLog",
+    os: "/common/hk4e_self_help_query/User/GetCrystalLog",
+  },
+  header: {
+    id: "id",
+    datetime: "datetime",
+    total: "add_num",
+    reasonId: "reason_id",
+    reasonDetail: "reason"
   }
 }
 
 const RESIN_SHEET_INFO: ILogSheetInfo = {
   sheetName: SHEET_NAME_RESIN_LOG,
   apiPaths: {
-    cn: "/ysulog/api/getResinLog",
-    os: "/ysulog/api/getResinLog",
+    cn: "/common/hk4e_self_help_query/User/GetResinLog",
+    os: "/common/hk4e_self_help_query/User/GetResinLog",
+  },
+  header: {
+    id: "id",
+    datetime: "datetime",
+    total: "add_num",
+    reasonId: "reason_id",
+    reasonDetail: "reason"
   }
 }
 
 const ARTIFACT_SHEET_INFO: ILogSheetInfo = {
   sheetName: SHEET_NAME_ARTIFACT_LOG,
   apiPaths: {
-    cn: "/ysulog/api/getArtifactLog",
-    os: "/ysulog/api/getArtifactLog",
+    cn: "/common/hk4e_self_help_query/User/GetArtifactLog",
+    os: "/common/hk4e_self_help_query/User/GetArtifactLog",
+  },
+  header: {
+    id: "id",
+    datetime: "datetime",
+    total: "add_num",
+    reasonId: "reason_id",
+    reasonDetail: "reason",
+    itemName: "name",
+    itemLevel: "level",
+    itemRarity: "quality"
   }
 }
 
@@ -98,15 +131,32 @@ const MORA_SHEET_INFO: ILogSheetInfo = {
   sheetName: SHEET_NAME_MORA_LOG,
   apiPaths: {
     cn: "/event/ys_ledger/monthDetail",
-    os: "/event/ysledgeros/month_detail",
+    os: "/event/ysledgeros/month_detail"
+  },
+  header: {
+    id: "id",
+    datetime: "time",
+    total: "num",
+    reasonId: "action_id",
+    reasonDetail: "action"
   }
 }
 
 const WEAPON_SHEET_INFO: ILogSheetInfo = {
   sheetName: SHEET_NAME_WEAPON_LOG,
   apiPaths: {
-    cn: "/ysulog/api/getWeaponLog",
-    os: "/ysulog/api/getWeaponLog",
+    cn: "/common/hk4e_self_help_query/User/GetWeaponLog",
+    os: "/common/hk4e_self_help_query/User/GetWeaponLog",
+  },
+  header: {
+    id: "id",
+    datetime: "datetime",
+    total: "add_num",
+    reasonId: "reason_id",
+    reasonDetail: "reason",
+    itemName: "name",
+    itemLevel: "level",
+    itemRarity: "quality"
   }
 }
 
@@ -117,12 +167,12 @@ const USER_PREFERENCE_MONTHLY_REPORT = "Monthly Report";
 const USER_PREFERENCE_YEARLY_REPORT = "Yearly Report";
 // User Preferences
 const userPreferences = {
-  "Primogem Log": { "Monthly Report": "B35", "Yearly Report": "B36"},
-  "Crystal Log": { "Monthly Report": "B38", "Yearly Report": "B39"},
-  "Resin Log": { "Monthly Report": "B41", "Yearly Report": "B42"},
-  "Mora Log": { "Monthly Report": "B44", "Yearly Report": "B45"},
-  "Artifact Log": { "Monthly Report": "B47", "Yearly Report": "B48"},
-  "Weapon Log": { "Monthly Report": "B50", "Yearly Report": "B51"}
+  "Primogem Log": { "Monthly Report": "B35", "Yearly Report": "B36", "Log Max Columns": 5},
+  "Crystal Log": { "Monthly Report": "B38", "Yearly Report": "B39", "Log Max Columns": 5},
+  "Resin Log": { "Monthly Report": "B41", "Yearly Report": "B42", "Log Max Columns": 5},
+  "Mora Log": { "Monthly Report": "B44", "Yearly Report": "B45", "Log Max Columns": 5},
+  "Artifact Log": { "Monthly Report": "B47", "Yearly Report": "B48", "Log Max Columns": 8},
+  "Weapon Log": { "Monthly Report": "B50", "Yearly Report": "B51", "Log Max Columns": 8}
 }
 // Remove when using the 'Available' sheet from source, this is for backwards compatibility for v1.0 less. Artifact is done via 'Available' sheet from source
 const userPreferencesForReport = {
@@ -149,7 +199,9 @@ const languageSettingsForImport = {
   "Korean": { "code": "ko", "full_code": "ko-kr", "4_star": " (★4)", "5_star": " (★5)" },
   "Portuguese": { "code": "pt", "full_code": "pt-pt", "4_star": " (4★)", "5_star": " (5★)" },
   "Thai": { "code": "th", "full_code": "th-th", "4_star": " (4 ดาว)", "5_star": " (5 ดาว)" },
-  "Russian": { "code": "ru", "full_code": "ru-ru", "4_star": " (4★)", "5_star": " (5★)" }
+  "Russian": { "code": "ru", "full_code": "ru-ru", "4_star": " (4★)", "5_star": " (5★)" },
+  "Italian": { "code": "it", "full_code": "it-it", "4_star": " (4 ★)", "5_star": " (5 ★)" },
+  "Turkish": { "code": "tr", "full_code": "tr-tr", "4_star": " (4 Yıldızlı)", "5_star": " (5 Yıldızlı)" }
 };
 
 // region
