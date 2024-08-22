@@ -77,13 +77,73 @@ function warnLogsNotMatched(logSheetInfo: ILogSheetInfo, settingsSheet: GoogleAp
   return true;
 }
 
+function findReasonId(reasonDetailName :string, entry: ImServiceLogEntry, reasonMap) {
+  let findKey = entry[reasonDetailName];
+  let foundIdFromMap = 0;
+
+  // Find mapping first from document, very useful in overriding miHoYo random reason change
+  if (localReasonMap == null) {
+    getPopulateReasonMap();
+  }
+  foundIdFromMap = localReasonMap[findKey];
+
+  if (foundIdFromMap == null) {
+    // Find from miHoYo
+    foundIdFromMap = reasonMap.get(findKey);
+  }
+  if (foundIdFromMap == null) {
+    // Unable to find within document or miHoYo
+    foundIdFromMap = 0;
+  }
+  return foundIdFromMap;
+}
+
+var localReasonMap;
+
+function getPopulateReasonMap() {
+  let reasonMapSheet = SpreadsheetApp.getActive().getSheetByName(SHEET_NAME_REASON_MAP);
+  localReasonMap = [];
+  let reasonMapData;
+  if (reasonMapSheet) {
+    reasonMapData = reasonMapSheet.getDataRange().getValues();
+  } else {
+    reasonMapSheet = loadReasonMapSheet();
+    if (reasonMapSheet) {
+      reasonMapData = reasonMapSheet.getDataRange().getValues();
+    }
+  }
+  if (reasonMapData) {
+    reasonMapData.forEach(function (row, index) {
+      if (index > 0) {
+        localReasonMap[row[1]] = row[0];
+      }
+    });
+  }
+  return reasonMapSheet;
+}
+
 function writeImServiceLogToSheet(logSheetInfo: ILogSheetInfo) {
   const config = getConfig();
   const settingsSheet = SpreadsheetApp.getActive().getSheetByName(SHEET_NAME_SETTINGS);
   const logSheet = SpreadsheetApp.getActive().getSheetByName(logSheetInfo.sheetName);
-  const curValues = logSheet.getDataRange().getValues();
-  const logHeaderRow = curValues[0];
-  const previousLogCount = curValues.length - 1;
+  let curValues = logSheet.getDataRange().getValues();
+  let logHeaderRow = curValues[0];
+  try {
+    // Test if headers are correct before proceeding
+    let checkColumns = [logSheetInfo.header.id, logSheetInfo.header.datetime, logSheetInfo.header.ReasonId, logSheetInfo.header.reasonDetail];
+
+    if (logSheetInfo.sheetName == SHEET_NAME_ARTIFACT_LOG || logSheetInfo.sheetName == SHEET_NAME_WEAPON_LOG) {
+      checkColumns.push(logSheetInfo.header.itemRarity, logSheetInfo.header.itemLevel,logSheetInfo.header.itemRarity);
+    }
+    getRowProperties(logHeaderRow, curValues[0], checkColumns);
+  } catch (err) {
+    addFormulaByLogName(logSheetInfo.sheetName);
+    // Reload only the header row
+    var logSourceNumberOfColumnWithFormulas = logSheet.getLastColumn();
+    logHeaderRow = logSheet.getRange(1, 1, 1, logSourceNumberOfColumnWithFormulas).getValues()[0];
+  };
+
+  let previousLogCount = curValues.length - 1;
 
   const reasonMap = getReasonMap(config);
   let authKey: string, serverDivide: ServerDivide;
@@ -99,7 +159,7 @@ function writeImServiceLogToSheet(logSheetInfo: ILogSheetInfo) {
   let lastLogId: string = null;
   let lastLogDate: number = null;
   if (previousLogCount) {
-    const [lastLogIdStr, lastLogDateStr] = getRowProperties(logHeaderRow, curValues[1], ["id", "time"]);
+    const [lastLogIdStr, lastLogDateStr] = getRowProperties(logHeaderRow, curValues[1], [logSheetInfo.header.id, logSheetInfo.header.datetime]);
     lastLogId = lastLogIdStr;
     lastLogDate = Date.parse(lastLogDateStr);
   }
@@ -122,7 +182,8 @@ function writeImServiceLogToSheet(logSheetInfo: ILogSheetInfo) {
     const stoppingMatched = addEntriesToRows(entries, logHeaderRow, newRows, lastLogDate,
       (entry: ImServiceLogEntry) => entry.id === lastLogId,
       {
-        "detail": (entry: ImServiceLogEntry) => reasonMap.get(parseInt(entry.reason))
+        [logSheetInfo.header.total]: (entry: ImServiceLogEntry) => parseInt(entry.add_num), // Conversion needed due to GetCrystalLog outputting string, example '+300'
+        [logSheetInfo.header.reasonId]: (entry: ImServiceLogEntry) => findReasonId(logSheetInfo.header.reasonDetail, entry, reasonMap)// There is no reason id, must cross match reason details
       }
     );
     if (stoppingMatched) {
@@ -149,8 +210,26 @@ function writeImServiceLogToSheet(logSheetInfo: ILogSheetInfo) {
 
 // if import takes too long, cache results before Google kills the run
 const importStartTime = Date.now();
+
 function writeLedgerLogToSheet(logSheetInfo: ILogSheetInfo) {
-  const COMPARING_PROPS = ["time", "num", "action_id"];
+  const COMPARING_PROPS = [logSheetInfo.header.datetime, logSheetInfo.header.total, logSheetInfo.header.reasonId];
+
+  const logSheet = SpreadsheetApp.getActive().getSheetByName(logSheetInfo.sheetName);
+
+  let curValues = logSheet.getDataRange().getValues();
+  let logHeaderRow = curValues[0];
+
+  try {
+    // Test if headers are correct before proceeding
+    let checkColumns = [logSheetInfo.header.id, logSheetInfo.header.datetime, logSheetInfo.header.reasonId, logSheetInfo.header.reasonDetail];
+    getRowProperties(logHeaderRow, curValues[0], checkColumns);
+  } catch (err) {
+    addFormulaByLogName(logSheetInfo.sheetName);
+    // Reload only the header row
+    var logSourceNumberOfColumnWithFormulas = logSheet.getLastColumn();
+    logHeaderRow = logSheet.getRange(1, 1, 1, logSourceNumberOfColumnWithFormulas).getValues()[0];
+  };
+
   const isSameRowValue = (row0: string[], row1: string[], row0Proc = null, row1Proc = null) => {
     const props0 = getRowProperties(logHeaderRow, row0, COMPARING_PROPS, row0Proc);
     const props1 = getRowProperties(logHeaderRow, row1, COMPARING_PROPS, row1Proc);
@@ -159,18 +238,26 @@ function writeLedgerLogToSheet(logSheetInfo: ILogSheetInfo) {
 
   const config = getConfig();
   const settingsSheet = SpreadsheetApp.getActive().getSheetByName(SHEET_NAME_SETTINGS);
-  const logSheet = SpreadsheetApp.getActive().getSheetByName(logSheetInfo.sheetName);
 
-  let curValues = logSheet.getDataRange().getValues();
-  const logHeaderRow = curValues[0];
   const previousLogCount = curValues.length - 1;
 
   const serverDivide = REGION_INFO[config.regionCode].serverDivide;
 
   let cookies: Cookies;
   serverDivideSpecificOp(serverDivide, {
-    cn: () => { (cookies as LedgerCookieCn) = { cookie_token: ltokenInput, account_id: ltuidInput }; },
-    os: () => { (cookies as LedgerCookieOs) = { ltoken: ltokenInput, ltuid: ltuidInput }; }
+    cn: () => { (cookies as LedgerCookieCn) = {
+      cookie_token: ltokenInput,
+      account_id: ltuidInput,
+      ltmid_v2: ltmidInput,
+      bind_uid: guidInput};
+    },
+    os: () => { (cookies as LedgerCookieOs) = {
+      ltoken_v2: ltokenInput,
+      ltuid_v2: ltuidInput,
+      ltmid_v2: ltmidInput,
+      ltoken: ltokenInput,
+      ltuid: ltuidInput
+    }}
   });
 
   const curYear = getServerTimeAsUtcNow(config.regionCode).getUTCFullYear();
@@ -181,7 +268,8 @@ function writeLedgerLogToSheet(logSheetInfo: ILogSheetInfo) {
   if (serverDivide === "os") {
     params.lang = config.languageCode;
   }
-
+  params.uid = guidInput;
+  params.page_size = 100;
   const endpoint = getApiEndpoint(logSheetInfo, serverDivide);
   const apiResponseMonthsAvailable
     = (requestApiResponse(endpoint, params, cookies) as LedgerApiResponse).data.optional_month;
@@ -198,7 +286,7 @@ function writeLedgerLogToSheet(logSheetInfo: ILogSheetInfo) {
   let trimToRowIdx = 1;
   if (trimToRowIdx < curValues.length) {
     const rowIsInAvailableLogRange = (row: string[]) => {
-      const [timeStr] = getRowProperties(logHeaderRow, row, ["time"]);
+      const [timeStr] = getRowProperties(logHeaderRow, row, [logSheetInfo.header.datetime]);
       const apiTimeAsUtc = getApiTimeAsServerTimeAsUtc(timeStr);
       // having getMonth start at Jan = 0 is the stupidest thing ive ever seen
       return apiResponseMonthsAvailableWithYear.includes(
@@ -232,7 +320,7 @@ function writeLedgerLogToSheet(logSheetInfo: ILogSheetInfo) {
   let monthsToImport = apiResponseMonthsAvailable;
   if (hasPreviousLogInRange) {
     const [lastImportedLogTimeStr, lastImportedLogNumStr, lastImportedLogActionStr]
-      = getRowProperties(logHeaderRow, curValues[1], ["time", "num", "action_id"]);
+      = getRowProperties(logHeaderRow, curValues[1], [logSheetInfo.header.datetime, logSheetInfo.header.total, logSheetInfo.header.reasonId]);
     lastImportedLogTime = Date.parse(ensureApiTime(lastImportedLogTimeStr));
     lastImportedLogNum = parseInt(lastImportedLogNumStr);
     lastImportedLogAction = parseInt(lastImportedLogActionStr);
@@ -423,6 +511,8 @@ const getResinLog = () => writeImServiceLogToSheet(RESIN_SHEET_INFO);
 const getArtifactLog = () => writeImServiceLogToSheet(ARTIFACT_SHEET_INFO);
 const getWeaponLog = () => writeImServiceLogToSheet(WEAPON_SHEET_INFO);
 const getMoraLog = () => writeLedgerLogToSheet(MORA_SHEET_INFO);
+const getStarglitterLog = () => writeImServiceLogToSheet(MASTERLESS_STARGLITTER_SHEET_INFO);
+const getStardustLog = () => writeImServiceLogToSheet(MASTERLESS_STARDUST_SHEET_INFO);
 
 const LOG_RANGES = {
   "Primogem Log": { "range_status": "E26", "range_toggle": "E19", "range_dashboard_length": "C15" },
@@ -430,11 +520,15 @@ const LOG_RANGES = {
   "Resin Log": { "range_status": "E28", "range_toggle": "E21", "range_dashboard_length": "C25" },
   "Artifact Log": { "range_status": "E29", "range_toggle": "E22", "range_dashboard_length": "C35" },
   "Weapon Log": { "range_status": "E46", "range_toggle": "E45", "range_dashboard_length": "C40" },
-  "Mora Log": { "range_status": "E39", "range_toggle": "E35", "range_dashboard_length": "C30" }
+  "Mora Log": { "range_status": "E39", "range_toggle": "E35", "range_dashboard_length": "C30" },
+  "Starglitter Log": { "range_status": "E48", "range_toggle": "E47", "range_dashboard_length": "C45" },
+  "Stardust Log": { "range_status": "E50", "range_toggle": "E49", "range_dashboard_length": "C49" },
 };
 
 const ltokenInput: string;
-const ltuidInput: string;
+const ltuidInput: number;
+const ltmidInput: string;
+const guidInput: number;
 
 function importFromAPI() {
   var settingsSheet = getSettingsSheet();
@@ -467,6 +561,10 @@ function importFromAPI() {
           getArtifactLog();
         } else if (logName == SHEET_NAME_WEAPON_LOG) {
           getWeaponLog();
+        } else if (logName == SHEET_NAME_STARGLITTER_LOG) {
+          getStarglitterLog();
+        } else if (logName == SHEET_NAME_STARDUST_LOG) {
+          getStardustLog();
         } else {
           settingsSheet.getRange(bannerSettings['range_status']).setValue("Error log sheet");
         }
@@ -479,6 +577,61 @@ function importFromAPI() {
   }
 
   settingsSheet.getRange("E25").setValue(new Date());
+}
+
+function loadImportFromHoYoLAB() {
+  var settingsSheet = getSettingsSheet();
+  loadHoYoLabData(settingsSheet);
+  importFromHoYoLAB();
+}
+
+function loadHoYoLABUIDPopup(settingsSheet) {
+  const result = displayUserPrompt("Auto Import with HoYoLab", `Enter ltuid/account_id_v2 to proceed.\nPress 'Yes' to amend\nPress 'No' to keep saved setting:\n`+ltuidInput, SpreadsheetApp.getUi().ButtonSet.YES_NO_CANCEL);
+
+  var button = result.getSelectedButton();
+  if (button == SpreadsheetApp.getUi().Button.YES) {
+    ltuidInput = result.getResponseText();
+    if (isHoYoIdCorrect(ltuidInput)) {
+      settingsSheet.getRange("E31").setValue(ltuidInput);
+      loadHoYoLABMIDPopup(settingsSheet);
+    } else {
+      settingsSheet.getRange(LOG_RANGES[SHEET_NAME_MORA_LOG]['range_status']).setValue("account_id_v2 is invalid");
+    }
+  } else if (button == SpreadsheetApp.getUi().Button.NO) {
+    loadHoYoLABMIDPopup(settingsSheet);
+  } else {
+    settingsSheet.getRange(LOG_RANGES[SHEET_NAME_MORA_LOG]['range_status']).setValue("User cancelled process");
+  }
+}
+
+function loadHoYoLABMIDPopup(settingsSheet) {
+  const result = displayUserPrompt("Auto Import with HoYoLab", `Enter account_mid_v2 to proceed.\nPress 'Yes' to amend\nPress 'No' to keep saved setting:\n`+ltmidInput, SpreadsheetApp.getUi().ButtonSet.YES_NO_CANCEL);
+
+  var button = result.getSelectedButton();
+  if (button == SpreadsheetApp.getUi().Button.YES) {
+    ltmidInput = result.getResponseText();
+    settingsSheet.getRange("E32").setValue(ltmidInput);
+    loadGenshinImpactUIDPopup(settingsSheet);
+  } else if (button == SpreadsheetApp.getUi().Button.NO) {
+    loadGenshinImpactUIDPopup(settingsSheet);
+  } else {
+    settingsSheet.getRange(LOG_RANGES[SHEET_NAME_MORA_LOG]['range_status']).setValue("User cancelled process");
+  }
+}
+
+function loadGenshinImpactUIDPopup(settingsSheet) {
+  const result = displayUserPrompt("Auto Import with HoYoLab", `Enter Genshin Impact UID to proceed.\nPress 'Yes' to amend\nPress 'No' to keep saved setting:\n`+guidInput, SpreadsheetApp.getUi().ButtonSet.YES_NO_CANCEL);
+
+  var button = result.getSelectedButton();
+  if (button == SpreadsheetApp.getUi().Button.YES) {
+    guidInput = result.getResponseText();
+    settingsSheet.getRange("E33").setValue(guidInput);
+    importFromHoYoLAB(settingsSheet);
+  } else if (button == SpreadsheetApp.getUi().Button.NO) {
+    importFromHoYoLAB(settingsSheet);
+  } else {
+    settingsSheet.getRange(LOG_RANGES[SHEET_NAME_MORA_LOG]['range_status']).setValue("User cancelled process");
+  }
 }
 
 function importFromHoYoLAB() {
@@ -502,17 +655,16 @@ function importFromHoYoLAB() {
       bannerSheet = SpreadsheetApp.getActive().getSheetByName(logName);
       if (bannerSheet) {
         if (logName == SHEET_NAME_MORA_LOG) {
-          ltuidInput = settingsSheet.getRange("D33").getValue();
-          if (ltuidInput.length == 0) {
-            const result = displayUserPrompt("Auto Import with HoYoLab", `Enter HoYoLAB UID to proceed\n.`);
+          if (guidInput.length == 0) {
+            const result = displayUserPrompt("Auto Import with HoYoLab", `Enter Genshin Impact UID to proceed.\n`, SpreadsheetApp.getUi().ButtonSet.OK_CANCEL);
             var button = result.getSelectedButton();
             if (button == SpreadsheetApp.getUi().Button.OK) {
-              ltuidInput = result.getResponseText();
-              if (isHoYoIdCorrect(ltuidInput)) {
-                settingsSheet.getRange("D33").setValue(ltuidInput);
+              guidInput = result.getResponseText();
+              if (guidInput.length > 0) {
+                settingsSheet.getRange("E33").setValue(guidInput);
                 getMoraLog();
               } else {
-                settingsSheet.getRange(bannerSettings['range_status']).setValue("HoYoLAB is invalid");
+                settingsSheet.getRange(bannerSettings['range_status']).setValue("Genshin Impact UID is empty");
               }
             } else {
               settingsSheet.getRange(bannerSettings['range_status']).setValue("User cancelled process");
@@ -533,7 +685,7 @@ function importFromHoYoLAB() {
   settingsSheet.getRange("E38").setValue(new Date());
 }
 
-function isHoYoIdCorrect(userInput: string) {
+function isHoYoIdCorrect(userInput: string): boolean {
   let isValid = false;
   if (userInput.match(/^[0-9]+$/) != null) {
     isValid = true;

@@ -7,13 +7,21 @@ type LocaleCode =
   "ja-jp" | "vi-vn" | "ko-kr" | "pt-pt" | "th-th" | "ru-ru";
 
 const API_DOMAINS_BY_SERVER_DIVIDE = {
-  cn: "hk4e-api.mihoyo.com",
-  os: "hk4e-api-os.hoyoverse.com",
+  feedback: {
+    cn: "public-operation-hk4e.mihoyo.com",
+    os: "public-operation-hk4e-sg.hoyoverse.com",
+  },
+  diary: {
+    cn: "hk4e-api.mihoyo.com",
+    os: "sg-hk4e-api.hoyolab.com",
+  }
 }
 
 const KNOWN_DOMAIN_LIST = [
   { domain: "user.mihoyo.com", serverDivide: "cn" },
   { domain: "account.mihoyo.com", serverDivide: "os" },
+  { domain: "cs.hoyoverse.com", serverDivide: "os" },
+  { domain: "gs.hoyoverse.com", serverDivide: "os" },
   { domain: "account.hoyoverse.com", serverDivide: "os" },
 
   { domain: "webstatic.mihoyo.com", serverDivide: "cn" },
@@ -76,8 +84,12 @@ interface ImServiceLogEntry {
   id: string,
   uid: string,
   time: string,
+  datetime: string,
   add_num: string,
   reason: string,
+  quantity: number,
+  sub_action_name: string,
+  battle_path_type: string
 }
 
 interface ImServiceLogData {
@@ -99,11 +111,19 @@ interface ImServiceApiResponse {
 // ledger
 
 interface LedgerCookieCn extends Cookies {
-  account_id: string, cookie_token: string
+  account_id: string,
+  cookie_token: string,
+  bind_uid: string,
+  bind_region: string,
+  ltuid_v2: string,
+  ltoken_v2: string,
+  ltmid_v2: string,
 }
 
 interface LedgerCookieOs extends Cookies {
-  ltoken: string, ltuid: string
+  ltuid_v2: string,
+  ltoken_v2: string,
+  ltmid_v2: string,
 }
 
 interface LedgerParams extends Params {
@@ -210,24 +230,24 @@ function getApiRequest(endpoint: string, params: Params, cookies: Cookies = null
   return request;
 }
 
-function getReasonMap(config = getConfig()) {
-  const LANG_MAP_URL = `https://mi18n-os.mihoyo.com/webstatic/admin/mi18n/hk4e_global/m02251421001311/m02251421001311-${config.languageCode}.json`;
+function getReasonMap(config = getConfig()): Map<string, number> {
+  const LANG_MAP_URL = `https://webstatic.hoyoverse.com/admin/mi18n/hk4e_global/m02251421001311/m02251421001311-${config.languageCode}.json`;
   const REASON_PREFIX = "selfinquiry_general_reason_";
 
   const langMap = JSON.parse(UrlFetchApp.fetch(LANG_MAP_URL).getContentText());
 
-  const result = new Map<number, string>();
+  const result = new Map<string, number>();
   for (const key in langMap) {
     if (!key.includes(REASON_PREFIX)) continue;
 
     const reasonId = parseInt(key.substring(REASON_PREFIX.length));
-    result.set(reasonId, langMap[key]);
+    result.set(langMap[key], reasonId);
   }
   return result;
 }
 
 function getApiEndpoint(logSheetInfo: ILogSheetInfo, serverDivide: ServerDivide) {
-  return "https://" + API_DOMAINS_BY_SERVER_DIVIDE[serverDivide] + logSheetInfo.apiPaths[serverDivide];
+  return "https://" + API_DOMAINS_BY_SERVER_DIVIDE[logSheetInfo.endpointType][serverDivide] + logSheetInfo.apiPaths[serverDivide];
 }
 
 function getServerDivideFromUrl(url: string) {
